@@ -25,6 +25,7 @@
             flex: 1;
             padding: 20px;
             overflow-y: auto;
+            margin-bottom: 60px;
         }
         h1 {
             font-size: 1.8rem;
@@ -117,6 +118,11 @@
             justify-content: space-around;
             padding: 10px 0;
             box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+        .bottom-nav.hidden {
+            transform: translateY(100%);
         }
         .nav-item {
             color: #fff;
@@ -132,11 +138,11 @@
         .nav-item:hover {
             background-color: #34495e;
         }
-        .settings, .about, .saves {
+        .main, .settings, .about, .saves {
             display: none;
         }
-        .settings.active, .about.active, .saves.active {
-            display: block;
+        .main.active, .settings.active, .about.active, .saves.active {
+            display: block !important;
         }
         .settings label {
             display: block;
@@ -157,6 +163,10 @@
             border-radius: 4px;
             cursor: pointer;
         }
+        .saves p.empty {
+            color: #e74c3c;
+            text-align: center;
+        }
         @media (max-width: 600px) {
             h1 {
                 font-size: 1.5rem;
@@ -175,7 +185,7 @@
     <div class="container">
         <div class="main active">
             <h1>Quran Memorization Schedule - <span id="currentMonth"></span></h1>
-            <table id="scheduleTable">
+          <button onclick="exportToPDF()">Export PDF</button>  <table id="scheduleTable">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -188,10 +198,22 @@
         </div>
         <div class="settings">
             <h1>Settings</h1>
-            <label for="repetitionTarget">Repetition Target per Task:</label>
-            <input type="number" id="repetitionTarget" min="1" value="3">
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate">
+            <label for="pagesMemorized">Pages Already Memorized:</label>
+            <input type="number" id="pagesMemorized" min="0" max="604" value="0">
+            <label for="newMemorizationPages">New Memorization Pages per Day:</label>
+            <input type="number" id="newMemorizationPages" min="0" max="10" value="1">
             <label for="oldRevisionPercent">Old Revision Percentage (%):</label>
             <input type="number" id="oldRevisionPercent" min="0" max="100" step="0.1" value="14.2857">
+            <label for="oldRevisionStartPage">Old Revision Start Page:</label>
+            <input type="number" id="oldRevisionStartPage" min="1" max="604" value="1">
+            <label for="newMemorizationRepetitions">New Memorization Repetitions:</label>
+            <input type="number" id="newMemorizationRepetitions" min="1" value="3">
+            <label for="oldRevisionRepetitions">Old Revision Repetitions:</label>
+            <input type="number" id="oldRevisionRepetitions" min="1" value="3">
+            <label for="newRevisionRepetitions">New Revision Repetitions:</label>
+            <input type="number" id="newRevisionRepetitions" min="1" value="3">
             <button onclick="saveSettings()">Save Settings</button>
         </div>
         <div class="about">
@@ -207,7 +229,7 @@
     </div>
     <div class="modal" id="taskModal">
         <div class="modal-content">
-            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <span class="close-btn" onclick="closeModal()">×</span>
             <h2>Task Details - <span id="modalDate"></span></h2>
             <div id="taskDetails"></div>
         </div>
@@ -234,8 +256,14 @@
         let schedule = JSON.parse(localStorage.getItem('schedule')) || [];
         let progress = JSON.parse(localStorage.getItem('progress')) || {};
         let settings = JSON.parse(localStorage.getItem('settings')) || {
-            repetitionTarget: 3,
-            oldRevisionPercent: 14.2857
+            startDate: new Date().toISOString().split('T')[0],
+            pagesMemorized: 0,
+            newMemorizationPages: 1,
+            oldRevisionPercent: 14.2857,
+            oldRevisionStartPage: 1,
+            newMemorizationRepetitions: 3,
+            oldRevisionRepetitions: 3,
+            newRevisionRepetitions: 3
         };
 
         // DOM Elements
@@ -245,60 +273,90 @@
         const modalDate = document.getElementById('modalDate');
         const taskDetails = document.getElementById('taskDetails');
         const progressLog = document.getElementById('progressLog');
+        const bottomNav = document.querySelector('.bottom-nav');
+
+        // Scroll Handling for Bottom Nav
+        let lastScrollTop = 0;
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            if (scrollTop > lastScrollTop) {
+                bottomNav.classList.add('hidden');
+            } else {
+                bottomNav.classList.remove('hidden');
+            }
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+        });
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             generateSchedule();
             renderTable();
             updateProgressLog();
-            document.getElementById('repetitionTarget').value = settings.repetitionTarget;
+            // Populate settings inputs
+            document.getElementById('startDate').value = settings.startDate;
+            document.getElementById('pagesMemorized').value = settings.pagesMemorized;
+            document.getElementById('newMemorizationPages').value = settings.newMemorizationPages;
             document.getElementById('oldRevisionPercent').value = settings.oldRevisionPercent;
+            document.getElementById('oldRevisionStartPage').value = settings.oldRevisionStartPage;
+            document.getElementById('newMemorizationRepetitions').value = settings.newMemorizationRepetitions;
+            document.getElementById('oldRevisionRepetitions').value = settings.oldRevisionRepetitions;
+            document.getElementById('newRevisionRepetitions').value = settings.newRevisionRepetitions;
+            switchTab('main');
         });
 
-        // Generate Schedule for Current Month
+        // Generate Schedule
         function generateSchedule() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = today.getMonth();
-            currentMonthSpan.textContent = today.toLocaleString('default', { month: 'long', year: 'numeric' });
+            const startDate = new Date(settings.startDate);
+            const year = startDate.getFullYear();
+            const month = startDate.getMonth();
+            currentMonthSpan.textContent = startDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             schedule = [];
 
-            let totalMemorized = 0; // Track total pages memorized
-            const quranPages = 604; // Total pages in Quran
+            let totalMemorized = parseInt(settings.pagesMemorized) || 0;
+            const quranPages = 604;
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
+                if (date < startDate) continue;
+
                 const tasks = [];
 
-                // New Memorization: 1 page per day
+                // New Memorization
                 if (totalMemorized < quranPages) {
                     tasks.push({
-                        type: 'New',
+                        type: 'New Memorization',
                         page: totalMemorized + 1,
                         repetitions: 0,
-                        target: settings.repetitionTarget
+                        target: settings.newMemorizationRepetitions
                     });
-                    totalMemorized++;
+                    totalMemorized += settings.newMemorizationPages;
                 }
 
-                // Old Revision: 1/7 (~14.2857%) of total memorized
+                // Old Revision
                 const oldRevisionPages = Math.floor(totalMemorized * (settings.oldRevisionPercent / 100));
                 if (oldRevisionPages > 0) {
-                    let startPage = totalMemorized - oldRevisionPages + 1;
-                    if (startPage < 1) startPage = 1;
+                    let startPage = parseInt(settings.oldRevisionStartPage) || 1;
+                    if (startPage > totalMemorized) startPage = 1;
+                    const endPage = Math.min(startPage + oldRevisionPages - 1, totalMemorized, quranPages);
                     tasks.push({
-                        type: 'Old',
+                        type: 'Old Revision',
+                        pages: `${startPage}-${endPage}`,
+                        repetitions: 0,
+                        target: settings.oldRevisionRepetitions
+                    });
+                }
+
+                // New Revision
+                if (totalMemorized > 0) {
+                    let startPage = Math.max(1, totalMemorized - settings.newMemorizationPages + 1);
+                    tasks.push({
+                        type: 'New Revision',
                         pages: `${startPage}-${Math.min(totalMemorized, quranPages)}`,
                         repetitions: 0,
-                        target: settings.repetitionTarget
+                        target: settings.newRevisionRepetitions
                     });
-
-                    // Reset old revision when reaching new revision
-                    if (totalMemorized >= oldRevisionPages) {
-                        totalMemorized = 0; // Reset to start new cycle
-                    }
                 }
 
                 schedule.push({ date: date.toISOString().split('T')[0], tasks });
@@ -329,15 +387,23 @@
         function showTaskDetails(day) {
             modalDate.textContent = new Date(day.date).toLocaleDateString();
             taskDetails.innerHTML = '';
-            day.tasks.forEach((task, index) => {
+            const taskTypes = ['New Memorization', 'Old Revision', 'New Revision'];
+            taskTypes.forEach(type => {
+                const task = day.tasks.find(t => t.type === type) || {
+                    type,
+                    page: null,
+                    pages: 'None',
+                    repetitions: 0,
+                    target: settings[`${type.toLowerCase().replace(' ', '')}Repetitions`]
+                };
                 const taskDiv = document.createElement('div');
                 taskDiv.className = `task-item ${task.repetitions >= task.target ? 'completed' : ''}`;
                 taskDiv.innerHTML = `
                     <p><strong>${task.type}:</strong> ${task.page || task.pages}</p>
                     <div class="counter">
                         <span>Repetitions: ${task.repetitions}/${task.target}</span>
-                        <button onclick="incrementRepetition('${day.date}', ${index})" 
-                                ${task.repetitions >= task.target ? 'disabled' : ''}>+1</button>
+                        <button onclick="incrementRepetition('${day.date}', '${task.type}')" 
+                                ${task.repetitions >= task.target || task.pages === 'None' ? 'disabled' : ''}>+1</button>
                     </div>
                 `;
                 taskDetails.appendChild(taskDiv);
@@ -346,14 +412,24 @@
         }
 
         // Increment Repetition
-        function incrementRepetition(date, taskIndex) {
+        function incrementRepetition(date, taskType) {
             const day = schedule.find(d => d.date === date);
-            if (day && day.tasks[taskIndex].repetitions < day.tasks[taskIndex].target) {
-                day.tasks[taskIndex].repetitions++;
+            let task = day.tasks.find(t => t.type === taskType);
+            if (!task) {
+                task = {
+                    type: taskType,
+                    pages: 'None',
+                    repetitions: 0,
+                    target: settings[`${taskType.toLowerCase().replace(' ', '')}Repetitions`]
+                };
+                day.tasks.push(task);
+            }
+            if (task.repetitions < task.target && task.pages !== 'None') {
+                task.repetitions++;
                 localStorage.setItem('schedule', JSON.stringify(schedule));
                 progress[date] = progress[date] || [];
                 progress[date].push({
-                    task: day.tasks[taskIndex],
+                    task,
                     timestamp: new Date().toISOString()
                 });
                 localStorage.setItem('progress', JSON.stringify(progress));
@@ -366,7 +442,12 @@
         // Update Progress Log
         function updateProgressLog() {
             progressLog.innerHTML = '';
-            Object.keys(progress).sort().forEach(date => {
+            const dates = Object.keys(progress).sort();
+            if (dates.length === 0) {
+                progressLog.innerHTML = '<p class="empty">No progress recorded yet.</p>';
+                return;
+            }
+            dates.forEach(date => {
                 const logDiv = document.createElement('div');
                 logDiv.innerHTML = `<h3>${new Date(date).toLocaleDateString()}</h3>`;
                 progress[date].forEach(entry => {
@@ -394,20 +475,37 @@
 
         // Switch Tabs
         function switchTab(tab) {
-            document.querySelectorAll('.container > div').forEach(div => {
-                div.classList.remove('active');
-                if (div.classList.contains(tab)) div.classList.add('active');
-            });
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-                if (item.textContent.toLowerCase() === tab) item.classList.add('active');
-            });
+            const tabs = ['main', 'settings', 'about', 'saves'];
+            const tabElements = document.querySelectorAll('.container > div');
+            const navItems = document.querySelectorAll('.nav-item');
+
+            tabElements.forEach(el => el.classList.remove('active'));
+            navItems.forEach(item => item.classList.remove('active'));
+
+            const targetTab = document.querySelector(`.${tab}`);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+            const targetNav = Array.from(navItems).find(item => item.textContent.toLowerCase() === tab);
+            if (targetNav) {
+                targetNav.classList.add('active');
+            }
+
+            if (tab === 'saves') {
+                updateProgressLog();
+            }
         }
 
         // Save Settings
         function saveSettings() {
-            settings.repetitionTarget = parseInt(document.getElementById('repetitionTarget').value) || 3;
+            settings.startDate = document.getElementById('startDate').value || new Date().toISOString().split('T')[0];
+            settings.pagesMemorized = parseInt(document.getElementById('pagesMemorized').value) || 0;
+            settings.newMemorizationPages = parseInt(document.getElementById('newMemorizationPages').value) || 1;
             settings.oldRevisionPercent = parseFloat(document.getElementById('oldRevisionPercent').value) || 14.2857;
+            settings.oldRevisionStartPage = parseInt(document.getElementById('oldRevisionStartPage').value) || 1;
+            settings.newMemorizationRepetitions = parseInt(document.getElementById('newMemorizationRepetitions').value) || 3;
+            settings.oldRevisionRepetitions = parseInt(document.getElementById('oldRevisionRepetitions').value) || 3;
+            settings.newRevisionRepetitions = parseInt(document.getElementById('newRevisionRepetitions').value) || 3;
             localStorage.setItem('settings', JSON.stringify(settings));
             generateSchedule();
             renderTable();
