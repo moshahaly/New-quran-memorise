@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quran-memorizer-v4';
+const CACHE_NAME = 'quran-memorizer-v5';
 const urlsToCache = [
     '/',
     '/index.html',
