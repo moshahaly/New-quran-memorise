@@ -185,7 +185,7 @@
     <div class="container">
         <div class="main active">
             <h1>Quran Memorization Schedule - <span id="currentMonth"></span></h1>
-          <button onclick="exportToPDF()">Export PDF</button>  <table id="scheduleTable">
+            <table id="scheduleTable">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -265,6 +265,7 @@
             oldRevisionRepetitions: 3,
             newRevisionRepetitions: 3
         };
+        let oldRevisionCurrentPage = parseInt(localStorage.getItem('oldRevisionCurrentPage')) || settings.oldRevisionStartPage;
 
         // DOM Elements
         const tableBody = document.querySelector('#scheduleTable tbody');
@@ -316,6 +317,7 @@
 
             let totalMemorized = parseInt(settings.pagesMemorized) || 0;
             const quranPages = 604;
+            oldRevisionCurrentPage = parseInt(settings.oldRevisionStartPage) || 1;
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
@@ -335,10 +337,10 @@
                 }
 
                 // Old Revision
-                const oldRevisionPages = Math.floor(totalMemorized * (settings.oldRevisionPercent / 100));
-                if (oldRevisionPages > 0) {
-                    let startPage = parseInt(settings.oldRevisionStartPage) || 1;
-                    if (startPage > totalMemorized) startPage = 1;
+                const oldRevisionPages = Math.floor(totalMemorized * (settings.oldRevisionPercent / 100)) || 1;
+                if (oldRevisionPages > 0 && totalMemorized > 0) {
+                    let startPage = oldRevisionCurrentPage;
+                    if (startPage > totalMemorized) startPage = settings.oldRevisionStartPage;
                     const endPage = Math.min(startPage + oldRevisionPages - 1, totalMemorized, quranPages);
                     tasks.push({
                         type: 'Old Revision',
@@ -346,6 +348,13 @@
                         repetitions: 0,
                         target: settings.oldRevisionRepetitions
                     });
+
+                    // Update oldRevisionCurrentPage for the next day
+                    oldRevisionCurrentPage = endPage + 1;
+                    if (oldRevisionCurrentPage > totalMemorized) {
+                        oldRevisionCurrentPage = settings.oldRevisionStartPage;
+                    }
+                    localStorage.setItem('oldRevisionCurrentPage', oldRevisionCurrentPage);
                 }
 
                 // New Revision
@@ -507,6 +516,8 @@
             settings.oldRevisionRepetitions = parseInt(document.getElementById('oldRevisionRepetitions').value) || 3;
             settings.newRevisionRepetitions = parseInt(document.getElementById('newRevisionRepetitions').value) || 3;
             localStorage.setItem('settings', JSON.stringify(settings));
+            oldRevisionCurrentPage = settings.oldRevisionStartPage;
+            localStorage.setItem('oldRevisionCurrentPage', oldRevisionCurrentPage);
             generateSchedule();
             renderTable();
             alert('Settings saved!');
