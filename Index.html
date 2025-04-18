@@ -148,7 +148,7 @@
             display: block;
             margin: 10px 0 5px;
         }
-        .settings input {
+        .settings input, .settings select {
             width: 100%;
             padding: 8px;
             border: 1px solid #ddd;
@@ -203,9 +203,20 @@
             <label for="pagesMemorized">Pages Already Memorized:</label>
             <input type="number" id="pagesMemorized" min="0" max="604" value="0">
             <label for="newMemorizationPages">New Memorization Pages per Day:</label>
-            <input type="number" id="newMemorizationPages" min="0" max="10" value="1">
-            <label for="oldRevisionPercent">Old Revision Percentage (%):</label>
-            <input type="number" id="oldRevisionPercent" min="0" max="100" step="0.1" value="14.2857">
+            <select id="newMemorizationPages">
+                <option value="0.5">0.5 Page</option>
+                <option value="1" selected>1 Page</option>
+                <option value="1.5">1.5 Pages</option>
+                <option value="2">2 Pages</option>
+                <option value="2.5">2.5 Pages</option>
+                <option value="3">3 Pages</option>
+            </select>
+            <label for="oldRevisionPercent">Old Revision Fraction:</label>
+            <select id="oldRevisionPercent">
+                <option value="14.2857" selected>1/7 (~14.29%)</option>
+                <option value="10">1/10 (10%)</option>
+                <option value="7.1429">1/14 (~7.14%)</option>
+            </select>
             <label for="oldRevisionStartPage">Old Revision Start Page:</label>
             <input type="number" id="oldRevisionStartPage" min="1" max="604" value="1">
             <label for="newMemorizationRepetitions">New Memorization Repetitions:</label>
@@ -333,7 +344,7 @@
                         repetitions: 0,
                         target: settings.newMemorizationRepetitions
                     });
-                    totalMemorized += settings.newMemorizationPages;
+                    totalMemorized += parseFloat(settings.newMemorizationPages);
                 }
 
                 // Old Revision
@@ -359,10 +370,10 @@
 
                 // New Revision
                 if (totalMemorized > 0) {
-                    let startPage = Math.max(1, totalMemorized - settings.newMemorizationPages + 1);
+                    let startPage = Math.max(1, Math.floor(totalMemorized - settings.newMemorizationPages + 1));
                     tasks.push({
                         type: 'New Revision',
-                        pages: `${startPage}-${Math.min(totalMemorized, quranPages)}`,
+                        pages: `${startPage}-${Math.min(Math.floor(totalMemorized), quranPages)}`,
                         repetitions: 0,
                         target: settings.newRevisionRepetitions
                     });
@@ -509,7 +520,7 @@
         function saveSettings() {
             settings.startDate = document.getElementById('startDate').value || new Date().toISOString().split('T')[0];
             settings.pagesMemorized = parseInt(document.getElementById('pagesMemorized').value) || 0;
-            settings.newMemorizationPages = parseInt(document.getElementById('newMemorizationPages').value) || 1;
+            settings.newMemorizationPages = parseFloat(document.getElementById('newMemorizationPages').value) || 1;
             settings.oldRevisionPercent = parseFloat(document.getElementById('oldRevisionPercent').value) || 14.2857;
             settings.oldRevisionStartPage = parseInt(document.getElementById('oldRevisionStartPage').value) || 1;
             settings.newMemorizationRepetitions = parseInt(document.getElementById('newMemorizationRepetitions').value) || 3;
