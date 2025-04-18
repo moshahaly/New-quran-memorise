@@ -337,10 +337,10 @@
                 }
 
                 // Old Revision
-                const oldRevisionPages = Math.floor(totalMemorized * (settings.oldRevisionPercent / 100)) || 1;
-                if (oldRevisionPages > 0 && totalMemorized > 0) {
+                const oldRevisionPages = Math.max(1, Math.floor(totalMemorized * (settings.oldRevisionPercent / 100)));
+                if (totalMemorized > 0 && oldRevisionPages > 0) {
                     let startPage = oldRevisionCurrentPage;
-                    if (startPage > totalMemorized) startPage = settings.oldRevisionStartPage;
+                    if (startPage > totalMemorized || startPage < 1) startPage = settings.oldRevisionStartPage;
                     const endPage = Math.min(startPage + oldRevisionPages - 1, totalMemorized, quranPages);
                     tasks.push({
                         type: 'Old Revision',
