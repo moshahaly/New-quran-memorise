@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quran Memorization Schedule</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/icon-192x192.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        h1 {
+            font-size: 1.8rem;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #2c3e50;
+            color: #fff;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+            cursor: pointer;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .task-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .task-item.completed {
+            background-color: #e0f7fa;
+            border-color: #00acc1;
+        }
+        .counter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .counter button {
+            padding: 5px 10px;
+            background-color: #2c3e50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .counter button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+        }
+        .nav-item {
+            color: #fff;
+            text-align: center;
+            flex: 1;
+            padding: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .nav-item.active {
+            background-color: #34495e;
+        }
+        .nav-item:hover {
+            background-color: #34495e;
+        }
+        .settings, .about, .saves {
+            display: none;
+        }
+        .settings.active, .about.active, .saves.active {
+            display: block;
+        }
+        .settings label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+        .settings input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .settings button, .saves button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #2c3e50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+            th, td {
+                font-size: 0.9rem;
+                padding: 8px;
+            }
+            .nav-item {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main active">
+            <h1>Quran Memorization Schedule - <span id="currentMonth"></span></h1>
+            <table id="scheduleTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Tasks</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="settings">
+            <h1>Settings</h1>
+            <label for="repetitionTarget">Repetition Target per Task:</label>
+            <input type="number" id="repetitionTarget" min="1" value="3">
+            <label for="oldRevisionPercent">Old Revision Percentage (%):</label>
+            <input type="number" id="oldRevisionPercent" min="0" max="100" step="0.1" value="14.2857">
+            <button onclick="saveSettings()">Save Settings</button>
+        </div>
+        <div class="about">
+            <h1>About</h1>
+            <p>Quran Memorizer</p>
+            <p>Created by Mohamed Elshahaly, 2025</p>
+        </div>
+        <div class="saves">
+            <h1>Saved Progress</h1>
+            <div id="progressLog"></div>
+            <button onclick="clearProgress()">Clear Progress</button>
+        </div>
+    </div>
+    <div class="modal" id="taskModal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2>Task Details - <span id="modalDate"></span></h2>
+            <div id="taskDetails"></div>
+        </div>
+    </div>
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('main')">Main</div>
+        <div class="nav-item" onclick="switchTab('settings')">Settings</div>
+        <div class="nav-item" onclick="switchTab('about')">About</div>
+        <div class="nav-item" onclick="switchTab('saves')">Saves</div>
+    </nav>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        // Initialize Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/Sw.js')
+                    .then(reg => console.log('Service Worker registered:', reg))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+
+        // State
+        let schedule = JSON.parse(localStorage.getItem('schedule')) || [];
+        let progress = JSON.parse(localStorage.getItem('progress')) || {};
+        let settings = JSON.parse(localStorage.getItem('settings')) || {
+            repetitionTarget: 3,
+            oldRevisionPercent: 14.2857
+        };
+
+        // DOM Elements
+        const tableBody = document.querySelector('#scheduleTable tbody');
+        const currentMonthSpan = document.getElementById('currentMonth');
+        const taskModal = document.getElementById('taskModal');
+        const modalDate = document.getElementById('modalDate');
+        const taskDetails = document.getElementById('taskDetails');
+        const progressLog = document.getElementById('progressLog');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            generateSchedule();
+            renderTable();
+            updateProgressLog();
+            document.getElementById('repetitionTarget').value = settings.repetitionTarget;
+            document.getElementById('oldRevisionPercent').value = settings.oldRevisionPercent;
+        });
+
+        // Generate Schedule for Current Month
+        function generateSchedule() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = today.getMonth();
+            currentMonthSpan.textContent = today.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            schedule = [];
+
+            let totalMemorized = 0; // Track total pages memorized
+            const quranPages = 604; // Total pages in Quran
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const tasks = [];
+
+                // New Memorization: 1 page per day
+                if (totalMemorized < quranPages) {
+                    tasks.push({
+                        type: 'New',
+                        page: totalMemorized + 1,
+                        repetitions: 0,
+                        target: settings.repetitionTarget
+                    });
+                    totalMemorized++;
+                }
+
+                // Old Revision: 1/7 (~14.2857%) of total memorized
+                const oldRevisionPages = Math.floor(totalMemorized * (settings.oldRevisionPercent / 100));
+                if (oldRevisionPages > 0) {
+                    let startPage = totalMemorized - oldRevisionPages + 1;
+                    if (startPage < 1) startPage = 1;
+                    tasks.push({
+                        type: 'Old',
+                        pages: `${startPage}-${Math.min(totalMemorized, quranPages)}`,
+                        repetitions: 0,
+                        target: settings.repetitionTarget
+                    });
+
+                    // Reset old revision when reaching new revision
+                    if (totalMemorized >= oldRevisionPages) {
+                        totalMemorized = 0; // Reset to start new cycle
+                    }
+                }
+
+                schedule.push({ date: date.toISOString().split('T')[0], tasks });
+            }
+            localStorage.setItem('schedule', JSON.stringify(schedule));
+        }
+
+        // Render Table
+        function renderTable() {
+            tableBody.innerHTML = '';
+            schedule.forEach(day => {
+                const row = document.createElement('tr');
+                const tasksSummary = day.tasks.map(task => 
+                    `${task.type}: ${task.page || task.pages}`
+                ).join(', ');
+                const allComplete = day.tasks.every(task => task.repetitions >= task.target);
+                row.innerHTML = `
+                    <td>${new Date(day.date).toLocaleDateString()}</td>
+                    <td>${tasksSummary}</td>
+                    <td>${allComplete ? 'Complete' : 'In Progress'}</td>
+                `;
+                row.onclick = () => showTaskDetails(day);
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Show Task Details Modal
+        function showTaskDetails(day) {
+            modalDate.textContent = new Date(day.date).toLocaleDateString();
+            taskDetails.innerHTML = '';
+            day.tasks.forEach((task, index) => {
+                const taskDiv = document.createElement('div');
+                taskDiv.className = `task-item ${task.repetitions >= task.target ? 'completed' : ''}`;
+                taskDiv.innerHTML = `
+                    <p><strong>${task.type}:</strong> ${task.page || task.pages}</p>
+                    <div class="counter">
+                        <span>Repetitions: ${task.repetitions}/${task.target}</span>
+                        <button onclick="incrementRepetition('${day.date}', ${index})" 
+                                ${task.repetitions >= task.target ? 'disabled' : ''}>+1</button>
+                    </div>
+                `;
+                taskDetails.appendChild(taskDiv);
+            });
+            taskModal.style.display = 'flex';
+        }
+
+        // Increment Repetition
+        function incrementRepetition(date, taskIndex) {
+            const day = schedule.find(d => d.date === date);
+            if (day && day.tasks[taskIndex].repetitions < day.tasks[taskIndex].target) {
+                day.tasks[taskIndex].repetitions++;
+                localStorage.setItem('schedule', JSON.stringify(schedule));
+                progress[date] = progress[date] || [];
+                progress[date].push({
+                    task: day.tasks[taskIndex],
+                    timestamp: new Date().toISOString()
+                });
+                localStorage.setItem('progress', JSON.stringify(progress));
+                renderTable();
+                showTaskDetails(day);
+                updateProgressLog();
+            }
+        }
+
+        // Update Progress Log
+        function updateProgressLog() {
+            progressLog.innerHTML = '';
+            Object.keys(progress).sort().forEach(date => {
+                const logDiv = document.createElement('div');
+                logDiv.innerHTML = `<h3>${new Date(date).toLocaleDateString()}</h3>`;
+                progress[date].forEach(entry => {
+                    logDiv.innerHTML += `<p>${entry.task.type}: ${entry.task.page || entry.task.pages} - Completed at ${new Date(entry.timestamp).toLocaleTimeString()}</p>`;
+                });
+                progressLog.appendChild(logDiv);
+            });
+        }
+
+        // Clear Progress
+        function clearProgress() {
+            if (confirm('Are you sure you want to clear all progress?')) {
+                progress = {};
+                schedule.forEach(day => {
+                    day.tasks.forEach(task => {
+                        task.repetitions = 0;
+                    });
+                });
+                localStorage.setItem('progress', JSON.stringify(progress));
+                localStorage.setItem('schedule', JSON.stringify(schedule));
+                renderTable();
+                updateProgressLog();
+            }
+        }
+
+        // Switch Tabs
+        function switchTab(tab) {
+            document.querySelectorAll('.container > div').forEach(div => {
+                div.classList.remove('active');
+                if (div.classList.contains(tab)) div.classList.add('active');
+            });
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.textContent.toLowerCase() === tab) item.classList.add('active');
+            });
+        }
+
+        // Save Settings
+        function saveSettings() {
+            settings.repetitionTarget = parseInt(document.getElementById('repetitionTarget').value) || 3;
+            settings.oldRevisionPercent = parseFloat(document.getElementById('oldRevisionPercent').value) || 14.2857;
+            localStorage.setItem('settings', JSON.stringify(settings));
+            generateSchedule();
+            renderTable();
+            alert('Settings saved!');
+        }
+
+        // Close Modal
+        function closeModal() {
+            taskModal.style.display = 'none';
+        }
+
+        // Export to PDF
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text('Quran Memorization Schedule', 10, 10);
+            doc.autoTable({
+                head: [['Date', 'Tasks', 'Status']],
+                body: schedule.map(day => {
+                    const tasksSummary = day.tasks.map(task => 
+                        `${task.type}: ${task.page || task.pages}`
+                    ).join(', ');
+                    const allComplete = day.tasks.every(task => task.repetitions >= task.target);
+                    return [
+                        new Date(day.date).toLocaleDateString(),
+                        tasksSummary,
+                        allComplete ? 'Complete' : 'In Progress'
+                    ];
+                })
+            });
+            doc.save(`Quran_Schedule_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+    </script>
+</body>
+</html>
